@@ -9,6 +9,8 @@ void LedInit(void)
     for (int i = 0; i < kLedCount; ++i) {
         mock_gpio_led_state[i] = false;
     }
+
+    // TODO: Set up GPIOs based on hardware specifications
 }
 
 bool LedSet(enum Led led, bool on)

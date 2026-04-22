@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -17,16 +18,32 @@ static int64_t timespec_diff_ns(const struct timespec* start,
            (end->tv_nsec - start->tv_nsec);
 }
 
+typedef struct {
+    uint16_t low;
+    uint16_t high;
+    uint16_t critical;
+} TemperatureThresholds;
+
 int main(void)
 {
+    //
     // Setup
-    bool previous_led_state[kLedCount] = {false, false, false};
+    //
     const int64_t loop_period_ns = LOOP_PERIOD_US * NS_PER_US;
 
-    //
-    // EEPROM
-    //
+    static const TemperatureThresholds kThresholdsByRevision[] = {
+        [kRevA] = { .low = 5,  .high = 85,  .critical = 105 },
+        [kRevB] = { .low = 50, .high = 850, .critical = 1050 }
+    };
 
+    bool previous_led_state[kLedCount] = {false, false, false};
+
+    // setup hardware
+    // TODO: Setup microcontroller clock
+    LedInit();
+    TemperatureSensorInit();
+
+    // EEPROM
     DeviceInfo dev;
 
     if (!ReadDeviceInfo(&dev)) {
@@ -37,23 +54,31 @@ int main(void)
     printf("Revision: %u\n", dev.revision);
     printf("Serial:   %s\n", dev.serial);
 
+    const TemperatureThresholds thresholds = kThresholdsByRevision[dev.revision];
 
+    //
+    // Main loop
+    //
     while (true)
     {
         struct timespec t_start;
         struct timespec t_end;
 
+        // TODO: This is an OS service for PC mock; on an embedded system use hardware timer with interrupt
         clock_gettime(CLOCK_MONOTONIC, &t_start);
+
         //
         // Temperature
         //
 
-        float temperature = 0;
-        if (!TemperatureSensorCelsius(dev.revision, &temperature))
+        uint16_t temperature = 0;
+        if (!TemperatureSensorAdc(dev.revision, &temperature))
         {
             fprintf(stderr, "Failed to read temperature\n");
             return 1;
         }
+        // TODO: Depending on ADC signal characteristics, using the raw ADC value could lead to flickering LEDs
+        // If this is an issue, consider options such as low pass filtering, a dead band, etc.
 
         ///
         /// LEDs
@@ -64,11 +89,11 @@ int main(void)
         bool current_led_state[kLedCount] = {false, false, false};
 
         // nominal temperature
-        if (temperature >= 5 && temperature < 85)
+        if (temperature >= thresholds.low && temperature < thresholds.high)
         {
             current_led_state[kLedG] = true;
         }
-        else if (temperature >= 85 && temperature < 105)
+        else if (temperature >= thresholds.high && temperature < thresholds.critical)
         {
             current_led_state[kLedY] = true;
         }
@@ -86,6 +111,7 @@ int main(void)
                 if (!LedSet((enum Led)led, current_led_state[led]))
                 {
                     fprintf(stderr, "Failed to set LED\n");
+                    return 1;
                 };
                 previous_led_state[led] = current_led_state[led];
                 changed = true;
@@ -95,7 +121,8 @@ int main(void)
         // If the status changed, print the current temperature and LED state
         if (changed)
         {
-            printf("%f", temperature);
+            printf("Temperature ADC value: ");
+            printf("%u", temperature);
             printf("\n");
 
             printf("LED state: G=%s Y=%s R=%s\n",
@@ -117,6 +144,7 @@ int main(void)
             struct timespec sleep_time;
             sleep_time.tv_sec = remaining_ns / NS_PER_SEC;
             sleep_time.tv_nsec = remaining_ns % NS_PER_SEC;
+            // TODO: This is an OS service for PC mock; on an embedded system use hardware timer with interrupt
             nanosleep(&sleep_time, NULL);
         } else {
             // loop overran 100 us, so do not sleep

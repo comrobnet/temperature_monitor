@@ -5,8 +5,8 @@ set(CMAKE_C_STANDARD 11)
 
 add_executable(temperature_monitor
         src/main.c
-        #src/eeprom.c
-        #src/temperature_sensor.c
+        src/eeprom.c
+        src/temperature_sensor.c
         src/led.c
 )
 
