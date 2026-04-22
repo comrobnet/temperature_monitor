@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-// Mock hardware: fake EEPROM contents in memory
+// Mock EEPROM contents
 static const uint8_t kMockEeprom[EEPROM_SIZE] = {
     [EEPROM_REV_ADDR] = 1,
     [0x01] = 'A',
@@ -14,7 +14,6 @@ static const uint8_t kMockEeprom[EEPROM_SIZE] = {
     [0x07] = '4',
 };
 
-// Copy the eeprom content at the desired address to the buffer
 bool EepromRead(uint16_t addr, uint8_t *buf, size_t len)
 {
     if (buf == NULL) {
@@ -29,7 +28,6 @@ bool EepromRead(uint16_t addr, uint8_t *buf, size_t len)
     return true;
 }
 
-// Read and store the eeprom info
 bool ReadDeviceInfo(DeviceInfo *info)
 {
     uint8_t raw[1 + EEPROM_SERIAL_LEN];
